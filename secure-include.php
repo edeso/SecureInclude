@@ -468,7 +468,7 @@ function ef_include_render_iframe($argv)
 
     return '<iframe src="'.
 	htmlspecialchars($argv['src']) .
-	'" frameborder="1" scrolling="1" width="'.
+	'" frameborder="1" scrolling="yes" width="'.
 	$width .
 	'" height="'.
 	$height .
