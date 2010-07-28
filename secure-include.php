@@ -139,6 +139,33 @@
  *          The src URL is passed directly to svn, so it can be any
  *          URL that SVN understands.
  *
+ *      lines="range"
+ *          Select a line range from the file to include. The range
+ *          can be of the form:
+ *          - an integer ("42") : select this line
+ *          - a comma-separated list of integers ("1, 3, 5") : select
+ *            these lines.
+ *          - a (comma-separated list of) ranges separated by a hyphen
+ *            like "X-Y" : select lines between X and Y (included). If
+ *            X and/or Y is omitted, consider the beginning/end of the
+ *            file.
+ *
+ *      from="[STRING]", to="[STRING]", before="[STRING]", after="[STRING]"
+ *          Select a range of lines to include according to the
+ *          content of the file. For example, to include the file
+ *          starting from the line whose content is FOO and stopping
+ *          at the line whose content is BAR, one can say
+ *
+ *              from="FOO" to="BAR"
+ *
+ *          When using from= and to=, the matched lines are included
+ *          in the output. before= and after= are similar except that
+ *          the matched lines are excluded from the output.
+ *          All of these attribute can take either a string, in which
+ *          case the value is the complete content of the line, or a
+ *          regexp (including delimiters, like /foo.*bar/), in which
+ *          case the regexp is matched against the line content.
+ *
  *      highlight="[SYNTAX]"   (needs $wg_include_allowed_features['highlight'] = true;)
  *          You may colorize the text of any file that you import.
  *          The value of SYNTAX must be any one managed by GeSHI. When
@@ -152,17 +179,6 @@
  *          linestart="N"
  *              In conjunction with linenums, start numbering lines from
  *              line M instead of counting from 1.
- *
- *          lines="range"
- *              Select a line range from the file to include. The range
- *              can be of the form:
- *              - an integer ("42") : select this line
- *              - a comma-separated list of integers ("1, 3, 5") : select
- *                these lines.
- *              - a (comma-separated list of) ranges separated by a hyphen
- *                like "X-Y" : select lines between X and Y (included). If
- *                X and/or Y is omitted, consider the beginning/end of the
- *                file.
  *
  *          select="range"
  *              Highlight lines selected by range. Range take the same
@@ -308,6 +324,51 @@ function ef_include_path_in_allowed_list ($haystack_list, $needle_path)
     return false;
 }
 
+function ef_include_trap_error() {
+    global $ef_include_error_trapped;
+    $ef_include_error_trapped = true;
+}
+/**
+ * ef_include_is_regexp
+ *
+ * Check whether $reg_exp is a valid regular expression (inculding
+ * delimiters, like /foo/).
+ *
+ * @param string $reg_exp The expression to check
+ *
+ * @access public
+ * @return boolean
+ */
+function ef_include_is_regexp( $reg_exp )
+{
+    global $ef_include_error_trapped;
+    $ef_include_error_trapped = false;
+    $sPREVIOUSHANDLER = set_error_handler( 'ef_include_trap_error' );
+    preg_match( $reg_exp, '' );
+    restore_error_handler( $sPREVIOUSHANDLER );
+    return !$ef_include_error_trapped;
+}
+
+/**
+ * ef_include_match
+ *
+ * Check whether a string matches with a regular expression (either a
+ * string or a /regexp/)
+ *
+ * @param string $regexp_or_string The expression to match with
+ * @param string $to_match String to match
+ *
+ * @access public
+ * @return boolean
+ */
+function ef_include_match( $regexp_or_string, $to_match )
+{
+    if (ef_include_is_regexp($regexp_or_string))
+	return preg_match($regexp_or_string, $to_match);
+    else
+	return $to_match === $regexp_or_string;
+}
+
 /**
  * ef_include_extract_line_range_maybe
  *
@@ -321,26 +382,65 @@ function ef_include_path_in_allowed_list ($haystack_list, $needle_path)
  * @access public
  * @return boolean
  */
-function ef_include_extract_line_range_maybe($output, $lines, &$startline)
+function ef_include_extract_line_range_maybe($output, $argv, &$startline)
 {
+    $lines = $argv['lines'];
+    if ((!isset($lines)) &&
+	(!isset($argv['after'])) &&
+	(!isset($argv['before'])) &&
+	(!isset($argv['from'])) &&
+	(!isset($argv['to'])))
+	return $output;
+
+    $output_a = explode("\n",$output);
     if (isset($lines)) {
-	$output_a = explode("\n",$output);
 	$array = ef_include_parse_range($lines,
 					count($output_a));
-	$i = 0;
-	foreach($array as $line) {
-	    $output_b[$i] = $output_a[$line];
-	    $i++;
-	}
-	if ($i == 0)
-	    return "";
-	$output = join("\n", $output_b);
-	// When extracting lines X-Y, start counting at X unless asked
-	// otherwise.
-	if (! isset($startline)) {
-	    $startline = $array[0];
-	}
+    } else {
+	$array = range(1, count($output_a));
     }
+
+    $computed_startline = -1;
+    $i = 0;
+    $in_regexp = !isset($argv['after']) && !isset($argv['from']);
+
+    foreach($array as $line) {
+	// $array is indexed from 1, but $output_X are indexed
+	// from 0, hence the -1.
+	$index = $line - 1;
+
+	if (isset($argv['from']) &&
+	    ef_include_match($argv['from'], $output_a[$index]))
+	    $in_regexp = true;
+
+	if (isset($argv['before']) &&
+	    ef_include_match($argv['before'], $output_a[$index]))
+	    break;
+
+	if ($in_regexp) {
+	    $output_b[$i] = $output_a[$index];
+	    $i++;
+	    if ($computed_startline == -1)
+		$computed_startline = $line;
+	}
+
+	if (isset($argv['after']) &&
+	    ef_include_match($argv['after'], $output_a[$index]))
+	    $in_regexp = true;
+
+	if (isset($argv['to']) &&
+	    ef_include_match($argv['to'], $output_a[$index]))
+	    break;
+    }
+    if ($i == 0)
+	return "";
+    // When extracting lines X-Y, start counting at X unless asked
+    // otherwise.
+    if (! isset($startline)) {
+	$startline = $computed_startline;
+    }
+
+    $output = join("\n", $output_b);
     return $output;
 }
 
@@ -644,7 +744,7 @@ function ef_include_render ( $input , $argv, &$parser )
             return $error_msg_prefix . "could not read the given src URL " . htmlspecialchars($argv['src']);
     }
 
-    $output = ef_include_extract_line_range_maybe($output, $argv['lines'], $argv['linestart']);
+    $output = ef_include_extract_line_range_maybe($output, $argv, $argv['linestart']);
 
     if (isset($argv['highlight']) && $highlighter_package)
     {
