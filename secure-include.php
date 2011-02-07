@@ -73,7 +73,7 @@
  *     <code>{{fullurl:{{NAMESPACE}}:{{PAGENAME}}|action=purge}}</code>
  *
  *     For the latest version go here:
- *         http://www.noah.org/wiki/MediaWiki_Include
+ *         http://gitorious.org/include/include/trees/master
  *
  * ATTRIBUTES
  *
@@ -215,8 +215,9 @@
  * AUTHOR
  *
  *      Noah Spurrier <noah@noah.org>
- *      Patched by Matthieu Moy <Matthieu.Moy@imag.fr>
  *      http://www.noah.org/wiki/MediaWiki_Include
+ *      Patched by Matthieu Moy <Matthieu.Moy@imag.fr>
+ *      http://gitorious.org/include/include/trees/master
  *
  * @package extensions
  * @version 8
