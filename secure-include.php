@@ -385,8 +385,7 @@ function ef_include_match( $regexp_or_string, $to_match )
  */
 function ef_include_extract_line_range_maybe($output, $argv, &$startline)
 {
-    $lines = $argv['lines'];
-    if ((!isset($lines)) &&
+    if ((!isset($argv['lines'])) &&
 	(!isset($argv['after'])) &&
 	(!isset($argv['before'])) &&
 	(!isset($argv['from'])) &&
@@ -394,8 +393,8 @@ function ef_include_extract_line_range_maybe($output, $argv, &$startline)
 	return $output;
 
     $output_a = explode("\n",$output);
-    if (isset($lines)) {
-	$array = ef_include_parse_range($lines,
+    if (isset($argv['lines'])) {
+	$array = ef_include_parse_range($argv['lines'],
 					count($output_a));
     } else {
 	$array = range(1, count($output_a));
