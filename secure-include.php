@@ -669,7 +669,7 @@ function ef_include_check_local_file($src_path)
  * @access public
  * @return string
  */
-function ef_include_render ( $input , $argv, &$parser )
+function ef_include_render ($input, $argv, $parser)
 {
     global $highlighter_package;
     global $wg_include_allowed_features;
