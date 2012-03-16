@@ -325,6 +325,7 @@ function ef_include_path_in_allowed_list ($haystack_list, $needle_path)
     return false;
 }
 
+/* helper function for ef_include_is_regexp */
 function ef_include_trap_error() {
     global $ef_include_error_trapped;
     $ef_include_error_trapped = true;
@@ -332,7 +333,7 @@ function ef_include_trap_error() {
 /**
  * ef_include_is_regexp
  *
- * Check whether $reg_exp is a valid regular expression (inculding
+ * Check whether $reg_exp is a valid regular expression (including
  * delimiters, like /foo/).
  *
  * @param string $reg_exp The expression to check
