@@ -232,14 +232,21 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 	die( 'This file is a MediaWiki extension, it is not a valid entry point' );
 }
 
+/* Prevent register_global attacks */
+$wg_include_allowed_features = Null;
+$wg_include_allowed_parent_paths = Null;
+$wg_include_allowed_url_regexp = Null;
+$wg_include_disallowed_regex = Null;
+$wg_include_disallowed_url_regexp = Null;
+
 if ( ! isset($wg_include_geshi_install_path) )
     $wg_include_geshi_install_path = "$IP/extensions/SyntaxHighlight_GeSHi/geshi/geshi.php";
 
 @include $wg_include_geshi_install_path;
 if (class_exists('GeSHi')) {
-	$highlighter_package = True;
+	$wg_include_highlighter_package = True;
 } else {
-	$highlighter_package = False;
+	$wg_include_highlighter_package = False;
 }
 
 $wgExtensionFunctions[] = "wf_include";
@@ -327,8 +334,8 @@ function ef_include_path_in_allowed_list ($haystack_list, $needle_path)
 
 /* helper function for ef_include_is_regexp */
 function ef_include_trap_error() {
-    global $ef_include_error_trapped;
-    $ef_include_error_trapped = true;
+    global $wg_include_error_trapped;
+    $wg_include_error_trapped = true;
 }
 /**
  * ef_include_is_regexp
@@ -343,12 +350,12 @@ function ef_include_trap_error() {
  */
 function ef_include_is_regexp( $reg_exp )
 {
-    global $ef_include_error_trapped;
-    $ef_include_error_trapped = false;
+    global $wg_include_error_trapped;
+    $wg_include_error_trapped = false;
     $sPREVIOUSHANDLER = set_error_handler( 'ef_include_trap_error' );
     preg_match( $reg_exp, '' );
     restore_error_handler( $sPREVIOUSHANDLER );
-    return !$ef_include_error_trapped;
+    return !$wg_include_error_trapped;
 }
 
 /**
@@ -678,7 +685,7 @@ function ef_include_check_local_file($src_path)
  */
 function ef_include_render ($input, $argv, $parser)
 {
-    global $highlighter_package;
+    global $wg_include_highlighter_package;
     global $wg_include_allowed_features;
     global $wg_include_allowed_parent_paths;
     global $wg_include_disallowed_regex;
@@ -753,7 +760,7 @@ function ef_include_render ($input, $argv, $parser)
 
     $output = ef_include_extract_line_range_maybe($output, $argv, $argv['linestart']);
 
-    if (isset($argv['highlight']) && $highlighter_package)
+    if (isset($argv['highlight']) && $wg_include_highlighter_package)
     {
 	if (! $wg_include_allowed_features['highlight'])
 	    return $error_msg_prefix . "'highlight' feature not activated for include.";
