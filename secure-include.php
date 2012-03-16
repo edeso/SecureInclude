@@ -651,6 +651,12 @@ function ef_include_check_local_file($src_path)
     {
 	return htmlspecialchars($src_path) . " matches a pattern in \$wg_include_disallowed_regex.";
     }
+    if ((! is_readable($src_path)) || is_dir($src_path) )
+    {
+	// purposely the same message for unreadable files and
+	// directories, to avoid leaking information.
+	return "Cannot open file " . htmlspecialchars($src_path) . ".";
+    }
     // Local file is allowed.
     return True;
 }
