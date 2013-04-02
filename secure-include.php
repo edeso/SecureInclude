@@ -692,7 +692,8 @@ function ef_include_check_local_file($src_path)
  *
  * @param mixed $input string
  * @param mixed $argv associative array
- * @param mixed $parser unused
+ * @param mixed $parser Parser
+ * @param mixed $parser PPFrame
  *
  * @access public
  * @return string
@@ -709,9 +710,9 @@ function ef_include_render ($input, $argv, $parser, $frame)
     $error_msg_prefix = "<b>ERROR</b> in " . htmlspecialchars(basename(__FILE__)) . ": ";
 
     foreach ($argv as &$a) {
-      if (isset($a)) {
-        $a = $parser->recursivePreprocess($a, $frame);
-      }
+        if (isset($a)) {
+            $a = $parser->recursivePreprocess($a, $frame);
+        }
     }
 
     if ( ! isset($argv['src']))
