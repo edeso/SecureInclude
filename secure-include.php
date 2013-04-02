@@ -697,7 +697,7 @@ function ef_include_check_local_file($src_path)
  * @access public
  * @return string
  */
-function ef_include_render ($input, $argv, $parser)
+function ef_include_render ($input, $argv, $parser, $frame)
 {
     global $wg_include_highlighter_package;
     global $wg_include_allowed_features;
@@ -707,6 +707,12 @@ function ef_include_render ($input, $argv, $parser)
     global $wg_include_disallowed_url_regexp;
 
     $error_msg_prefix = "<b>ERROR</b> in " . htmlspecialchars(basename(__FILE__)) . ": ";
+
+    foreach ($argv as &$a) {
+      if (isset($a)) {
+        $a = $parser->recursivePreprocess($a, $frame);
+      }
+    }
 
     if ( ! isset($argv['src']))
         return $error_msg_prefix . "<include> tag is missing 'src' attribute.";
