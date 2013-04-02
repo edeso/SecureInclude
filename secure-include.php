@@ -131,6 +131,12 @@
  *          the included text. You may turn this off by adding
  *          the 'nopre' attribute. It does not take any value.
  *
+ *      nocache
+ *          Disable MediaWiki's (relatively agressive) cache. Using
+ *          this option, the inclusion will be done each time the page
+ *          is loaded. Useful when including a dynamic page from a
+ *          remote URL.
+ *
  *      wikitext   (needs $wg_include_allowed_features['wikitext'] = true;)
  *          This treats the included text as Wikitext. The text is
  *          passed to the Mediawiki parser to be turned into HTML.
@@ -807,6 +813,11 @@ function ef_include_render ($input, $argv, $parser, $frame)
 
     if ( ! isset($argv['nopre'])) {
 	    $output = "<pre>" . $output . "</pre>";
+    }
+
+    # http://www.mediawiki.org/wiki/Extensions_FAQ#How_do_I_disable_caching_for_pages_using_my_extension.3F
+    if ( !empty( $argv['nocache'] ) ) {
+        $parser->disableCache();
     }
     return $output;
 }
