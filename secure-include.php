@@ -107,6 +107,8 @@
  *
  *              width
  *              height
+ *              scrolling
+ *              frameborder 
  *
  *          Example:
  *
@@ -565,6 +567,14 @@ function ef_include_geshi_syntax_highlight($output, $argv)
  */
 function ef_include_render_iframe($argv)
 {
+    if (isset($argv['frameborder']))
+	$frameborder = htmlspecialchars($argv['frameborder']);
+    else
+	$frameborder = '1';
+	if (isset($argv['scrolling']))
+	$scrolling = htmlspecialchars($argv['scrolling']);
+    else
+	$scrolling = 'yes';
     if (isset($argv['width']))
 	$width = htmlspecialchars($argv['width']);
     else
@@ -576,7 +586,11 @@ function ef_include_render_iframe($argv)
 
     return '<iframe src="'.
 	htmlspecialchars($argv['src']) .
-	'" frameborder="1" scrolling="yes" width="'.
+	'" frameborder="'.
+	$frameborder . 
+	'" scrolling="'.
+	$scrolling .
+	'" width="'.
 	$width .
 	'" height="'.
 	$height .
