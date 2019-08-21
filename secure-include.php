@@ -852,7 +852,7 @@ function ef_include_shell($input, $argv, $parser, $frame)
     return ef_include_get_errors($res[1]);
 
   // $output = var_export($input, true);
-  $cmd = "sh -c " . escapeshellarg($input) . "";
+  $cmd = "sh -c " . escapeshellarg($input) . "2>&1";
   exec($cmd, $output, $return_var);
 
   $error = '';
@@ -866,8 +866,28 @@ function ef_include_shell($input, $argv, $parser, $frame)
 
 function ef_include_php($input, $argv, $parser, $frame)
 {
-  global $wgUser;
-  return var_export('', true);
+  $input = trim($input);
+  $checksum = sha1($input);
+  $res = ef_include_isEvalAllowed('php', $checksum);
+  if (! $res[0])
+    return ef_include_get_errors($res[1]);
+
+  if (isset($res[1]))
+    ef_include_add_error($res[1]);
+
+  $output = '';
+  ob_start();
+  try {
+    eval( $input );
+  }catch (Error $e) {
+     ef_include_add_error("'{$e->getMessage()}' in line {$e->getLine()}");
+  }
+  $output = ob_get_clean();
+
+  $output = [
+    ef_include_get_errors() . $output
+  ];
+  return $output;
 }
 
 function ef_include_isEvalAllowed( $mode, $checksum = null ) {
@@ -878,16 +898,23 @@ function ef_include_isEvalAllowed( $mode, $checksum = null ) {
 
   // enabled via checksum?
   global $wg_include_allowed_checksums;
-  $checksum_ok = $checksum && is_array($wg_include_allowed_checksums[$mode]) && in_array($checksum, $wg_include_allowed_checksums[$mode]);
+  $checksum_ok = $checksum && isset($wg_include_allowed_checksums[$mode]) && is_array($wg_include_allowed_checksums[$mode]) && in_array($checksum, $wg_include_allowed_checksums[$mode]);
 
   $group = 'secureinclude';
   $right = 'secureinclude-scripting';
   // enabled via user?
-  global $wgUser, $wg_include_allowed_users;
+  global $wgUser, $wg_include_allowed_users, $wgOut;
   $logged_in = $wgUser && $wgUser->isLoggedIn();
   $edit_ok = $logged_in && $wgUser->isAllowed( 'edit' );
   $script_ok = $edit_ok && in_array($right,$wgUser->getRights());
-  $user_ok = $script_ok && isset($wg_include_allowed_users[$mode]) && is_array($wg_include_allowed_users[$mode]) && in_array($wgUser->mName, $wg_include_allowed_users[$mode]);
+  // test if latest revision is from same user
+  $revUserId='';
+  if ( $wgOut && $wgOut->getContext() && $wgOut->getContext()->canUseWikiPage() &&
+    $wgOut->getContext()->getWikiPage() && 
+    $wgOut->getContext()->getWikiPage()->getRevisionRecord() &&
+    $wgOut->getContext()->getWikiPage()->getRevisionRecord()->getUser() )
+    $revUserId = $wgOut->getContext()->getWikiPage()->getRevisionRecord()->getUser()->getId();
+  $lastEdit_ok = $wgUser->getId() === $revUserId;
 
   if (! $checksum_ok) {
     $prohibited = "Executing this '{$mode}' code is currently prohibited";
@@ -895,12 +922,18 @@ function ef_include_isEvalAllowed( $mode, $checksum = null ) {
     if ( !$logged_in )
       return [
         false,
-        "$prohibited because \$wg_include_allowed_checksums[$mode] does not allow it!"
+        "$prohibited because \$wg_include_allowed_checksums[$mode] does not contain a matching checksum!"
         ];
-    elseif (! $user_ok)
+    elseif (! $script_ok)
       return [
         false,
-        "$prohibited because $user is no member of group '$group' and \$wg_include_allowed_checksums[$mode] does not allow it!"
+        "$prohibited because $user is no member of group '$group' and \$wg_include_allowed_checksums[$mode] does not contain a matching checksum!"
+      ];
+    elseif (! $lastEdit_ok)
+      return [
+        false,
+        "$prohibited because someone else than $user has edited the page inbetween and \$wg_include_allowed_checksums[$mode] does not contain a matching checksum! <br>
+Doublecheck the changes and make sure they don't pose a security risk. Afterwards do some minor edit and save the page so you are the latest editor!"
       ];
     else
       return [
