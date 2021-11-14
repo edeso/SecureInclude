@@ -710,7 +710,7 @@ function ef_include_render($input, $argv, $parser, $frame)
   // $argv['nocache'] = true;
   // http://www.mediawiki.org/wiki/Extensions_FAQ#How_do_I_disable_caching_for_pages_using_my_extension.3F
   if (array_key_exists('nocache', $argv)) {
-    $parser->disableCache();
+    $parser->getOutput()->updateCacheExpiry(0);
   }
 
   $error_msg_prefix = "<b>ERROR</b> in " . htmlspecialchars(basename(__FILE__)) . ": ";
