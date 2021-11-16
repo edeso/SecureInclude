@@ -7,24 +7,40 @@
  * SYNOPSIS
  *
  *      <include src="[URL]" [noesc] [nopre] [svncat] [iframe]
- *                    [wikitext] [linenums] [linestart="N"]
- *                    [lines="N-M"] [highlight="[LANG]"] />
+ *                    [wikitext] [linestart="N"]
+ *                    [lines="N-M"] [lang="[LANG]"] />
  *
  * INSTALL
+ *    1.
+ *      Place the folder of the downloaded zip in a directory called 
+ *      'SecureInclude' in your 'extensions/' folder.
+ *    2.
+ *      Add the following code at the bottom of your LocalSettings.php:
+ *      
+ *      wfLoadExtension( 'SecureInclude' );
+ *    3.
+ *      Navigate to Special:Version on your wiki to verify that the 
+ *      extension is successfully installed.
  *
- *      Put this script on your server in your MediaWiki extensions directory:
+ * CONFIGURATION
+ *     You can add the following configuration settings in LocalSettings.php:
  *
- *          "$IP/extensions/include.php"
+ *     Most features are disabled by default for maximum security. You
+ *     have to enable them one by one by setting
  *
- *      where $IP is the Install Path of your MediaWiki. Then add these lines to LocalSettings.php:
+ *       $wg_include_allowed_features['...'] = true
+
+ *     Read carefully the security warnings below before doing so.
  *
- *          require_once("$IP/extensions/include.php");
- *          $wg_include_allowed_parent_paths = $_SERVER['DOCUMENT_ROOT'];
- *          $wg_include_disallowed_regex = array('/.*LocalSettings.php/', '/.*\.conf/', '/.*\/\.ht/');
- *          $wg_include_allowed_features['highlight'] = true;
- *          $wg_include_allowed_features['remote'] = true;
- *          $wg_include_allowed_url_regexp = array('/^http:\/\/.*$/');
- *          $wg_include_disallowed_url_regexp = array('/^.*:\/\/intranet/');
+ *     Available features are
+ *       local - inclusion of local files via <include>
+ *       remote - inclusion of remote files via <include>
+ *       highlight - allow syntax highlighting (needs Extension.SyntaxHighlight_GeSHi)
+ * 
+ *       shell - allow embedded shell script execution via <shell>
+ *       php - allow embedded php script execution via <php>
+ *       
+ *     TODO: Update & complete following documentation of configuration settings!
  *
  *     Note that these settings allow any document under your DOCUMENT_ROOT to be shared
  *     except LocalSettings.php or any file ending in .conf. You can add other regex patterns
@@ -45,11 +61,6 @@
  *     affect SVN URLs, and do not affect inclusion using the iframe
  *     attribute.
  *
- *     Most features are disabled by default for maximum security. You
- *     have to enable them one by one by setting
- *     $wg_include_allowed_features['...'] to 'true' in
- *     LocalSettings.php. Read carefully the security warnings below
- *     before doing so.
  *
  * DESCRIPTION
  *
@@ -225,8 +236,10 @@
  *
  *      Noah Spurrier <noah@noah.org>
  *      http://www.noah.org/wiki/MediaWiki_Include
- *      Patched by Matthieu Moy <Matthieu.Moy@imag.fr>
+ *      Matthieu Moy <Matthieu.Moy@imag.fr>
  *      https://gitlab.com/MediawikiInclude/include/tree/master
+ *      Edgar Soldin
+ *      https://github.com/edeso/SecureInclude/
  *
  * @package extensions
  * @version 8
@@ -255,21 +268,6 @@ function ef_include_onParserFirstCallInit(Parser $parser){
   global $wgGroupPermissions;
   $wgGroupPermissions['secureinclude']['secureinclude-scripting'] = true;
 }
-
-// $wgExtensionFunctions[] = "wf_include";
-// $wgExtensionCredits['other'][] = array
-// (
-// 'name' => 'include',
-// 'author' => 'Noah Spurrier (Patched by Matthieu Moy)',
-// 'url' => 'http://mediawiki.org/wiki/Extension:include',
-// 'description' => 'This lets you include static content from a local or remote URL.',
-// );
-
-// function wf_include()
-// {
-// global $wgParser;
-// $wgParser->setHook( "include", "ef_include_render" );
-// }
 
 /**
  * ef_include_path_in_regex_list
@@ -608,8 +606,8 @@ function ef_include_check_remote_url($src_path)
   global $wg_include_disallowed_url_regexp;
   global $wg_include_allowed_url_regexp;
 
-  if (! $wg_include_allowed_features['remote'])
-    return "Not allowed to include remote URLs, or inexistant path.";
+  if ( @$wg_include_allowed_features['remote'] !== true )
+    return "Not allowed to include remote URLs!";
 
   // Errors in parse_url generating a warning also return
   // false. Since we check for false right after, we don't
@@ -801,23 +799,23 @@ function ef_include_render($input, $argv, $parser, $frame)
   $output = ef_include_extract_line_range_maybe($output, $argv, $argv['linestart']);
 
   if (isset($argv['lang'])) {
+    if (! $wg_include_allowed_features['highlight'])
+      return ef_include_get_errors("'highlight' feature not activated for include.");
+
     $error = '';
-    if (! $wg_include_allowed_features['highlight']) {
-      $error = ef_include_add_error("'highlight' feature not activated for include.");
+    if (! class_exists('SyntaxHighlight')) {
+      $error = ef_include_add_error('Missing SyntaxHighlight_GeSHi extension.');
     } else {
-      if (! class_exists('SyntaxHighlight')) {
-        $error = ef_include_add_error('Missing SyntaxHighlight_GeSHi extension.');
+      $status = SyntaxHighlight::highlight($output, $argv['lang'], $argv);
+      if ($status->isOK()) {
+        $output = $status->getValue();
+        //enqueue css so styles are rendered
+        $parser->getOutput()->addModuleStyles( 'ext.pygments' );
       } else {
-        // return ef_include_geshi_syntax_highlight($output, $argv);
-        $status = SyntaxHighlight::highlight($output, $argv['lang'], $argv);
-        if ($status->isOK()) {
-          $output = $status->getValue();
-        } else {
-          $error = var_export($status, true);
-        }
+        ef_include_add_error( var_export($status, true) );
+        $output = htmlspecialchars($output);
       }
     }
-    $output = $error . $output;
   } elseif (isset($argv['wikitext'])) {
     if (! $wg_include_allowed_features['wikitext'])
       return ef_include_get_errors("'wikitext' feature not activated for include.");
@@ -832,16 +830,20 @@ function ef_include_render($input, $argv, $parser, $frame)
     $output = htmlspecialchars($output);
   }
 
-  // global $ef_include_errors;
-  // return join($ef_include_errors).$output;
-  // ef_include_add_error( var_export($argv,true) );
+  if ( ! ef_include_argv_value_is($argv, 'nopre', true) ) {
+    $output = "<pre>" . $output . "</pre>";
+  }
 
+  // prepend formatted errors, if any
   $output = [
     ef_include_get_errors() . $output
   ];
+
+  // dont touch output further, if nowiki is set
   if (! ef_include_argv_value_is($argv, 'nowiki', false))
     $output['markerType'] = 'nowiki';
-  return $output;
+
+    return $output;
 }
 
 function ef_include_shell($input, $argv, $parser, $frame)
