@@ -316,15 +316,17 @@ function ef_include_path_in_regex_list($haystack_list, $needle_path)
  */
 function ef_include_path_in_allowed_list($haystack_list, $needle_path)
 {
-  if (! isset($haystack_list) || count($haystack_list) == 0) {
-    return false;
-  }
   // polymorphism. Allow either a string or an Array of strings to be passed.
   if (is_string($haystack_list)) {
     $haystack_list = Array(
       $haystack_list
     );
   }
+  // no list, nothing allowed
+  if ( !is_array($haystack_list) || count($haystack_list) < 1) {
+    return false;
+  }
+
   foreach ($haystack_list as $path) {
     $path = realpath($path);
     // path does not exist
