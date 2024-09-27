@@ -900,7 +900,7 @@ function ef_include_isEvalAllowed( $mode, $checksum = null ) {
   // are enabled globally?
   global $wg_include_allowed_features;
   if ( !$wg_include_allowed_features[$mode] )
-    return [ false, "'${mode}' feature not activated for include." ];
+    return [ false, "'{$mode}' feature not activated for include." ];
 
   // enabled via checksum?
   global $wg_include_allowed_checksums;
