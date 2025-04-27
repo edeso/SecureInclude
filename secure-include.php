@@ -253,6 +253,8 @@ if (! defined('MEDIAWIKI')) {
   die('This file is a MediaWiki extension, it is not a valid entry point');
 }
 
+use MediaWiki\SyntaxHighlight\SyntaxHighlight;
+
 /* Prevent register_global attacks */
 $wg_include_allowed_features = Null;
 $wg_include_allowed_parent_paths = Null;
@@ -807,14 +809,14 @@ function ef_include_render($input, $argv, $parser, $frame)
       return ef_include_get_errors("'highlight' feature not activated for include.");
 
     $error = '';
-    if (! class_exists('SyntaxHighlight')) {
+    if (! class_exists('\MediaWiki\SyntaxHighlight\SyntaxHighlight')) {
       $error = ef_include_add_error('Missing SyntaxHighlight_GeSHi extension.');
     } else {
       $status = SyntaxHighlight::highlight($output, $argv['lang'], $argv);
       if ($status->isOK()) {
         $output = $status->getValue();
         //enqueue css so styles are rendered
-        $parser->getOutput()->addModuleStyles( 'ext.pygments' );
+        $parser->getOutput()->addModuleStyles( ['ext.pygments'] );
       } else {
         ef_include_add_error( var_export($status, true) );
         $output = htmlspecialchars($output);
