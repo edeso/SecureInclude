@@ -253,8 +253,7 @@ if (! defined('MEDIAWIKI')) {
   die('This file is a MediaWiki extension, it is not a valid entry point');
 }
 
-# needed since v1.39
-use MediaWiki\SyntaxHighlight\SyntaxHighlight;
+use MediaWiki\MediaWikiServices;
 
 /* Prevent register_global attacks */
 $wg_include_allowed_features = Null;
@@ -719,7 +718,7 @@ function ef_include_render($input, $argv, $parser, $frame)
   // $argv['nocache'] = true;
   // http://www.mediawiki.org/wiki/Extensions_FAQ#How_do_I_disable_caching_for_pages_using_my_extension.3F
   if (array_key_exists('nocache', $argv)) {
-    $parser->getOutput()->updateCacheExpiry(0);
+    ef_include_disable_cache($parser);
   }
 
   $error_msg_prefix = "<b>ERROR</b> in " . htmlspecialchars(basename(__FILE__)) . ": ";
@@ -813,13 +812,19 @@ function ef_include_render($input, $argv, $parser, $frame)
       return ef_include_get_errors("'highlight' feature not activated for include.");
 
     $error = '';
-    if (! class_exists('SyntaxHighlight') && ! class_exists('\MediaWiki\SyntaxHighlight\SyntaxHighlight')) {
-      $error = ef_include_add_error('Missing SyntaxHighlight_GeSHi extension.');
-    } else {
-      $status = SyntaxHighlight::highlight($output, $argv['lang'], $argv);
-      
+    if (! ExtensionRegistry::getInstance()->isLoaded( 'SyntaxHighlight' ) ) {
+      $error = ef_include_add_error('Missing SyntaxHighlight_GeSHi extension. Not enabled?');
+    }
+    else {
+      if (defined('MW_VERSION') && version_compare(MW_VERSION, '1.45', '>='))
+        $status = MediaWikiServices::getInstance()->getService('SyntaxHighlight.SyntaxHighlight')->syntaxHighlight($output, $argv['lang'], $argv, $parser);
+      elseif (defined('MW_VERSION') && version_compare(MW_VERSION, '1.39', '>='))
+        $status = MediaWiki\SyntaxHighlight\SyntaxHighlight::highlight($output, $argv['lang'], $argv, $parser);
+      else
+        $status = SyntaxHighlight::highlight($output, $argv['lang'], $argv, $parser);
+
       # generate warnings if we hit the size limits
-      $config = MediaWiki\MediaWikiServices::getInstance()->getMainConfig();
+      $config = MediaWikiServices::getInstance()->getMainConfig();
       $maxLines = $config->get( 'SyntaxHighlightMaxLines' );
       $maxBytes = $config->get( 'SyntaxHighlightMaxBytes' );
       // check size
@@ -874,6 +879,9 @@ function ef_include_render($input, $argv, $parser, $frame)
 
 function ef_include_shell($input, $argv, $parser, $frame)
 {
+  // shell tags are supposed to be executed every time, disable page cache
+  ef_include_disable_cache($parser);
+
   $checksum = sha1($input);
   $res = ef_include_isEvalAllowed('shell', $checksum);
   if (! $res[0])
@@ -894,6 +902,9 @@ function ef_include_shell($input, $argv, $parser, $frame)
 
 function ef_include_php($input, $argv, $parser, $frame)
 {
+  // php tags are supposed to be executed every time, disable page cache
+  ef_include_disable_cache($parser);
+
   $input = trim($input);
   $checksum = sha1($input);
   $res = ef_include_isEvalAllowed('php', $checksum);
@@ -917,8 +928,6 @@ function ef_include_php($input, $argv, $parser, $frame)
   ];
   return $output;
 }
-
-use MediaWiki\MediaWikiServices;
 
 function ef_include_isEvalAllowed( $mode, $checksum = null ) {
   // are enabled globally?
@@ -957,7 +966,7 @@ function ef_include_isEvalAllowed( $mode, $checksum = null ) {
     if ( !$logged_in )
       return [
         false,
-        "$prohibited because \$wg_include_allowed_checksums[$mode] does not contain a matching checksum!"
+        "$prohibited because <b>\$wg_include_allowed_checksums['$mode']</b> does not contain a matching checksum!"
         ];
     elseif (! $script_ok)
       return [
@@ -973,7 +982,8 @@ Doublecheck the changes and make sure they don't pose a security risk. Afterward
     else
       return [
         true,
-        "Executing this '{$mode}' code with checksum '{$checksum}' is <b>only temporarily allowed</b> during editing. To make it permanent add the checksum to '''\$wg_include_allowed_checksums['$mode']''' !"
+        "Executing this '{$mode}' code with checksum '{$checksum}' is <b>only temporarily allowed</b> while you are logged in.<br>
+To have it rendered for everyone add the checksum to <b>\$wg_include_allowed_checksums['$mode']</b> in <i>Localsettings.php</i> !"
         ];
   } else {
      return [ true ];
@@ -988,8 +998,8 @@ function ef_include_add_error(string $message)
   global $ef_include_errors;
   $fileinfo = 'no_file_info';
   $backtrace = debug_backtrace();
-  if (! empty($backtrace[0]) && is_array($backtrace[0]) && is_array($backtrace[1])) {
-    $fileinfo = basename($backtrace[0]['file']) . "::" . $backtrace[1]['function'] . ' (line ' . $backtrace[0]['line'] . ')';
+  if (! empty($backtrace[0]) && is_array($backtrace[0]) && is_array($backtrace[2])) {
+    $fileinfo = basename($backtrace[0]['file']) . "::" . $backtrace[2]['function'] . ' (line ' . $backtrace[0]['line'] . ')';
   }
 
   $error = '<div class="cdx-message cdx-message--block cdx-message--error">'.
@@ -1048,5 +1058,15 @@ function ef_include_argv_value_is(array $argv, string $key, $value)
   $argv_value = empty($argv[$key]) ? 'true' : $argv[$key] . "";
   // false == 'false', true == 'true' or ''
   return (strtolower($value) === strtolower($argv_value));
+}
+
+function ef_include_disable_cache( Parser $parser ) {
+  global $wgOut, $wgAction;
+
+  if ( !in_array( $wgAction, [ 'submit', 'edit' ] ) ) {
+    if ($parser)
+      $parser->getOutput()->updateCacheExpiry( 0 );
+    $wgOut->disableClientCache();
+  }
 }
 ?>
